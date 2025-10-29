@@ -1,0 +1,68 @@
+// index.js
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+// Secret key for signing JWTs (keep this safe!)
+const SECRET_KEY = "mysecretkey123";
+
+// Dummy user (in real app, verify from DB)
+const user = {
+  username: "admin",
+  password: "password123"
+};
+
+// ==================== LOGIN ROUTE ====================
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+
+  // Validate credentials
+  if (username === user.username && password === user.password) {
+    // Create JWT token valid for 1 hour
+    const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
+    return res.json({ message: "Login successful", token });
+  } else {
+    return res.status(401).json({ message: "Invalid username or password" });
+  }
+});
+
+// ==================== JWT VERIFY MIDDLEWARE ====================
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) return res.status(403).json({ message: "Missing Authorization header" });
+
+  const token = authHeader.split(" ")[1]; // Extract token after "Bearer"
+  if (!token) return res.status(403).json({ message: "Token not found" });
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    req.user = decoded; // attach user info to request
+    next(); // move to next route handler
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+// ==================== PROTECTED ROUTE ====================
+app.get("/protected", verifyToken, (req, res) => {
+  res.json({
+    message: "Welcome to the protected route!",
+    user: req.user
+  });
+});
+
+// ==================== PUBLIC ROUTE ====================
+app.get("/", (req, res) => {
+  res.send("JWT Authentication Practice API is running 🚀");
+});
+
+// Start server
+const PORT = 4000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+});
