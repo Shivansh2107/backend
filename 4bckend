@@ -1,0 +1,23 @@
+// backend/server.js
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+app.use(cors()); // Allow frontend to access backend
+
+// Product Data
+const products = [
+  { id: 1, name: 'Laptop', price: 75000 },
+  { id: 2, name: 'Smartphone', price: 35000 },
+  { id: 3, name: 'Headphones', price: 2000 },
+  { id: 4, name: 'Keyboard', price: 1200 },
+];
+
+// Route to fetch products
+app.get('/api/products', (req, res) => {
+  res.json(products);
+});
+
+// Start Server
+const PORT = 5000;
+app.listen(PORT, () => console.log(`✅ Backend running on http://localhost:${PORT}`));
