@@ -1,0 +1,100 @@
+// server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+
+const app = express();
+app.use(bodyParser.json());
+
+// -------------------------------------------
+// 1️⃣ MongoDB Connection
+// -------------------------------------------
+mongoose.connect('mongodb://127.0.0.1:27017/bankdb', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ Connected to MongoDB'))
+.catch(err => console.log('❌ MongoDB connection error:', err));
+
+// -------------------------------------------
+// 2️⃣ Account Schema & Model
+// -------------------------------------------
+const accountSchema = new mongoose.Schema({
+  name: String,
+  balance: Number
+});
+
+const Account = mongoose.model('Account', accountSchema);
+
+// -------------------------------------------
+// 3️⃣ Create Sample Accounts (Run once)
+// -------------------------------------------
+app.post('/create-sample', async (req, res) => {
+  try {
+    const accounts = await Account.insertMany([
+      { name: 'Alice', balance: 1000 },
+      { name: 'Bob', balance: 500 }
+    ]);
+    res.json({ message: 'Sample accounts created', accounts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------
+// 4️⃣ Transfer Endpoint (No Transactions)
+// -------------------------------------------
+app.post('/transfer', async (req, res) => {
+  const { from, to, amount } = req.body;
+
+  try {
+    // Validation
+    if (!from || !to || !amount || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid input values' });
+    }
+
+    // Find sender and receiver
+    const sender = await Account.findOne({ name: from });
+    const receiver = await Account.findOne({ name: to });
+
+    if (!sender) return res.status(404).json({ message: 'Sender account not found' });
+    if (!receiver) return res.status(404).json({ message: 'Receiver account not found' });
+
+    // Check balance
+    if (sender.balance < amount) {
+      return res.status(400).json({ message: 'Insufficient funds in sender account' });
+    }
+
+    // Sequential updates (no transactions)
+    sender.balance -= amount;
+    await sender.save();
+
+    receiver.balance += amount;
+    await receiver.save();
+
+    res.json({
+      message: '✅ Transfer successful',
+      from: { name: sender.name, newBalance: sender.balance },
+      to: { name: receiver.name, newBalance: receiver.balance }
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------------------------------
+// 5️⃣ Get All Accounts
+// -------------------------------------------
+app.get('/accounts', async (req, res) => {
+  const accounts = await Account.find();
+  res.json(accounts);
+});
+
+// -------------------------------------------
+// 6️⃣ Start Server
+// -------------------------------------------
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running at http://localhost:${PORT}`);
+});
