@@ -1,0 +1,67 @@
+// server/index.js
+const express = require('express');
+const http = require('http');
+const cors = require('cors');
+const { Server } = require('socket.io');
+
+const app = express();
+app.use(cors());
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000", // React dev server
+    methods: ["GET", "POST"]
+  }
+});
+
+// simple health route
+app.get('/', (req, res) => res.send('Socket.io Chat Server is running'));
+
+// store simple in-memory list of connected users (socketId -> name)
+const users = new Map();
+
+io.on('connection', (socket) => {
+  console.log(`Socket connected: ${socket.id}`);
+
+  // when a user joins with a name
+  socket.on('join', (name) => {
+    users.set(socket.id, name);
+    console.log(`${name} joined (${socket.id})`);
+
+    // broadcast to others that a new user joined
+    socket.broadcast.emit('systemMessage', { text: `${name} has joined the chat` });
+
+    // send updated user list to all clients
+    io.emit('users', Array.from(users.values()));
+  });
+
+  // when a client sends a chat message
+  socket.on('message', (payload) => {
+    // payload: { text }
+    const name = users.get(socket.id) || 'Anonymous';
+    const message = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      text: payload.text,
+      sender: name,
+      timestamp: new Date().toISOString()
+    };
+    // broadcast to everyone (including sender)
+    io.emit('message', message);
+  });
+
+  socket.on('disconnect', (reason) => {
+    const name = users.get(socket.id);
+    users.delete(socket.id);
+    if (name) {
+      console.log(`${name} disconnected (${socket.id}) - ${reason}`);
+      socket.broadcast.emit('systemMessage', { text: `${name} has left the chat` });
+      io.emit('users', Array.from(users.values()));
+    } else {
+      console.log(`Socket disconnected: ${socket.id} (${reason})`);
+    }
+  });
+});
+
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => console.log(`✅ Server listening on http://localhost:${PORT}`));
